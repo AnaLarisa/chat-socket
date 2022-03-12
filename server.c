@@ -12,11 +12,31 @@
 int server_sockfd = 0, client_sockfd = 0;
 ClientList *root, *now;
 
+char sendBuffer[1024] = {};
+
+volatile sig_atomic_t counterUserOnline = 1;
+
+void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
+{
+	ClientList *tmp = root->link;
+
+	while(tmp != NULL)
+	{
+		if(np->data != tmp->data){
+			printf("Send to sockfd %d: \"%s\" \n ",tmp->data, tmp_buffer);
+			send(tmp->data,tmp_buffer,1024,0);
+		}
+		tmp = tmp->link;
+	}
+}
+
 void catchCtrlCAndExit(int sig)
 {
 	ClientList *tmp;
 	while(root != NULL){
+		
 		printf("\n Close socketfd: %d\n",root->data);
+		//send(tmp->data,"EXIT",7,0);
 		close(root->data);
 		tmp = root;
 		root = root->link;
@@ -124,18 +144,24 @@ int insertUserOnDataBase(char *username, char *password)
 	return 0;
 }
 
-void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
-{
-	ClientList *tmp = root->link;
 
-	while(tmp != NULL)
+
+void insertMsgToFile(char *message)
+{
+	FILE *fin = fopen("message.txt", "a");
+	if(fin == NULL)
 	{
-		if(np->data != tmp->data){
-			printf("Send to sockfd %d: \"%s\" \n ",tmp->data, tmp_buffer);
-			send(tmp->data,tmp_buffer,1024,0);
-		}
-		tmp = tmp->link;
+		perror("fopen");
+		exit(EXIT_FAILURE);
 	}
+
+	char buffer[1024];
+
+	sprintf(buffer,"%s\n",message);
+
+	fputs(buffer,fin);
+
+	fclose(fin);
 }
 
 void clientHandler(void *p_client){
@@ -143,7 +169,7 @@ void clientHandler(void *p_client){
 	char nickname[1024] = {};
 	char password[1024] = {};
 	char recvBuffer[1024] = {};
-	char sendBuffer[1024] = {};
+
 
 	ClientList *np = (ClientList*) p_client;
 
@@ -166,7 +192,9 @@ void clientHandler(void *p_client){
 			sendMsgToAllClients(np,sendBuffer);
 		}else{
 			if(checkIfUserAlreadyExistInFile(nickname) == 1){
-				printf("username %s already exist... not entering the chat.. ", nickname);
+				printf("username %s already exists... not entering the chat.. \n", nickname);
+				sprintf(sendBuffer, "you cannot enter the chat because the username %s already exists ", nickname);
+				send(np->data,sendBuffer,1024,0);
 				leaveFlag = 1;
 			}else{
 				if(insertUserOnDataBase(nickname,password) == 0){
@@ -175,12 +203,14 @@ void clientHandler(void *p_client){
 				strncpy(np->password, password,1024);
 				strncpy(np->name, nickname, 1024);
 				printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
-				sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
+				sprintf(sendBuffer, "%s(%s) join the chatroom.\n", np->name, np->ip);
 				sendMsgToAllClients(np,sendBuffer);
 			}
 		}
+		counterUserOnline++;
 	}
 
+	send(np->data,"message.txt",12,0);
 
 	// start of a conversation
 
@@ -194,12 +224,14 @@ void clientHandler(void *p_client){
 				continue;
 			}
 			sprintf(sendBuffer, "%s: %s ", np->name, recvBuffer);
+			insertMsgToFile(sendBuffer);
 		}else if(receive == 0 || strcmp(recvBuffer, "exit") == 0){
+			counterUserOnline--;
 			printf("%s(%s)(%d) leave the chatroom", np->name, np->ip, np->data);
 			sprintf(sendBuffer, "%s(%s) leave the chatroom.\n", np->name, np->ip);
 			leaveFlag = 1;
 		}
-			sendMsgToAllClients(np,sendBuffer);
+		sendMsgToAllClients(np,sendBuffer);
 		
 	}
 
@@ -215,7 +247,7 @@ void clientHandler(void *p_client){
 
 int main(int argc, char* argv[])
 {
-	signal(SIGINT, catchCtrlCAndExit);
+	//signal(SIGINT, catchCtrlCAndExit);
 	server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(server_sockfd == -1)
 	{
@@ -232,7 +264,8 @@ int main(int argc, char* argv[])
 
 	server_info.sin_family = PF_INET;
 	server_info.sin_addr.s_addr = INADDR_ANY;
-	server_info.sin_port = htons(8000);
+	server_info.sin_port = htons(8001);
+
 
 	bind(server_sockfd, (struct sockaddr *)&server_info, server_addrlen);
 	listen(server_sockfd, 5);
@@ -247,8 +280,9 @@ int main(int argc, char* argv[])
 	while(1)
 	{
 		printf("***SERVER ON***\n");
-		client_sockfd = accept(server_sockfd, (struct sockaddr*)&client_info, (socklen_t*)&client_addrlen);
+		printf("***** USERS ONLINE : %d *****\n", counterUserOnline);
 
+		client_sockfd = accept(server_sockfd, (struct sockaddr*)&client_info, (socklen_t*)&client_addrlen);
 
 		getpeername(client_sockfd, (struct sockaddr*)&client_info, (socklen_t*) &client_addrlen);
 

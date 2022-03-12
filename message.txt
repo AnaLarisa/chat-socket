@@ -1,0 +1,9 @@
+bogdan: bogdan trimite amalia salut 
+amalia: amalia trimite bogdan salut inapoi 
+paul: salut bogdan si amalia 
+marco: buna eu sunt marco 
+amalia: amalia test 
+bogdan: test 
+amalia: amalia send tests 
+amalia: asda 
+marco: test 

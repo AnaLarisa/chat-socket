@@ -39,11 +39,31 @@ void recvMsgHandler()
 	char receiveMessage[1024] = {};
 	while(1){
 		int receive = recv(sockfd, receiveMessage, 1024, 0);
-		if(receive > 0){
+		if(receive > 0 && strcmp(receiveMessage,"message.txt") !=0){
 			printf("\r%s\n", receiveMessage);
 			strOverWriteStdout();
-		}else if(receive == 0){
-			break;
+		}else if(receive > 0 && strcmp(receiveMessage,"message.txt") ==0){
+
+			pid_t process = fork();
+			if(process == -1){
+				perror("fork()");
+				exit(EXIT_FAILURE);
+			}
+			if(process == 0){
+
+				if(execlp("cat","cat",receiveMessage,NULL,NULL) == -1){
+					perror("execlp");
+					exit(EXIT_FAILURE);
+				}
+
+				exit(EXIT_SUCCESS);
+			}
+			int status;
+			waitpid(process,&status,0);
+			strOverWriteStdout();
+		}else if(receive > 0 && strcmp(receiveMessage,"EXIT") == 0){
+			printf("\nserver disconnect\n");
+			leaving = 1;
 		}else{
 
 		}
@@ -90,6 +110,25 @@ int main(int argc, char* argv[])
 		strTrimLf(password,1024);
 	}
 
+	pid_t process = fork();
+	if(process == -1){
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+
+	if(process == 0){
+		if(execlp("clear","clear",NULL,NULL) == -1){
+			perror("clear");
+			exit(EXIT_FAILURE);
+		}
+		exit(EXIT_SUCCESS);
+	}
+
+	int status;
+	if(waitpid(process,&status,0) == -1){
+		perror("waitpid");
+		exit(EXIT_FAILURE);
+	}
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(sockfd == -1){
@@ -104,7 +143,7 @@ int main(int argc, char* argv[])
 	memset(&client_info,0,client_addrlen);
 	server_info.sin_family = PF_INET;
 	server_info.sin_addr.s_addr = inet_addr("127.0.0.1");
-	server_info.sin_port = htons(8000);
+	server_info.sin_port = htons(8001);
 
 	int connectionError = connect(sockfd, (struct sockaddr*)& server_info, server_addrlen);
 
