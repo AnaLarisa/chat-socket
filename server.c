@@ -12,7 +12,21 @@
 int server_sockfd = 0, client_sockfd = 0;
 ClientList *root, *now;
 
-void verifiyExistenceOfUser(char *username, char *password)
+void catchCtrlCAndExit(int sig)
+{
+	ClientList *tmp;
+	while(root != NULL){
+		printf("\n Close socketfd: %d\n",root->data);
+		close(root->data);
+		tmp = root;
+		root = root->link;
+		free(tmp);
+	}
+	printf("Closing server chose by the admin (CTRL + C )\n");
+	exit(EXIT_SUCCESS);
+}
+
+int checkIfUserAlreadyExistInFile(char *username)
 {
 	FILE *fin = fopen("BazeDateUser.txt","r");
 	if(fin == NULL)
@@ -28,10 +42,86 @@ void verifiyExistenceOfUser(char *username, char *password)
 		exit(EXIT_FAILURE);
 	}
 
-	while(fgets(buffer,1024,fin) !=NULL){
-		printf("%s ",buffer);
+	int result = 0;
+
+	while(fgets(buffer,1024,fin) != NULL){
+		buffer[strlen(buffer) - 1] = '\0';
+		if(strcmp(buffer,username) == 0){
+			result = 1;
+		}
+		fgets(buffer,1024,fin);
+		buffer[strlen(buffer) - 1] = '\0';
+		if(result!=0){
+			break;
+		}
 	}
+
 	fclose(fin);
+	free(buffer);
+
+	return result;
+
+}
+
+int verifiyExistenceOfUser(char *username, char *password)
+{
+	FILE *fin = fopen("BazeDateUser.txt","r");
+	if(fin == NULL)
+	{
+		perror("fopen");
+		exit(EXIT_FAILURE);
+	}
+
+	char *buffer = malloc(1024*sizeof(char *));
+	if(buffer == NULL)
+	{
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
+	int resultUsername = 0, resultPassword = 0;
+
+	while(fgets(buffer,1024,fin) != NULL){
+		buffer[strlen(buffer) - 1] = '\0';
+		//printf("%s \n",buffer);
+		if(strcmp(buffer,username) == 0){
+			resultUsername = 1;
+		}
+		fgets(buffer,1024,fin);
+		buffer[strlen(buffer) - 1] = '\0';
+		//printf("%s \n",buffer);
+		if(strcmp(buffer,password) ==0){
+			resultPassword = 1;
+		}
+		if(resultPassword != 0 && resultUsername !=0){
+			break;
+		}
+	}
+
+	fclose(fin);
+	free(buffer);
+	if(resultUsername == 1 && resultPassword == 1){
+		return 1;
+	}
+	return -1;
+}
+
+int insertUserOnDataBase(char *username, char *password)
+{
+	char buffer[1024];
+	sprintf(buffer, "%s\n%s\n", username, password);
+
+	FILE *fin = fopen("BazeDateUser.txt","a");
+	if(fin == NULL)
+	{
+		perror("fopen");
+		exit(EXIT_FAILURE);
+	}
+
+	fputs(buffer,fin);
+
+	fclose(fin);
+	return 0;
 }
 
 void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
@@ -66,19 +156,36 @@ void clientHandler(void *p_client){
 		leaveFlag = 1;
 	}else{
 		// verifiy file 
-		verifiyExistenceOfUser(nickname,password);
-		strncpy(np->password, password,1024);
-		strncpy(np->name, nickname, 1024);
-		printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
-		sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
-		sendMsgToAllClients(np,sendBuffer);
+		if(verifiyExistenceOfUser(nickname,password) > 0)
+		{
+			printf("The user %s that is trying to join is existing on our database!",nickname);
+			strncpy(np->password, password,1024);
+			strncpy(np->name, nickname, 1024);
+			printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
+			sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
+			sendMsgToAllClients(np,sendBuffer);
+		}else{
+			if(checkIfUserAlreadyExistInFile(nickname) == 1){
+				printf("username %s already exist... not entering the chat.. ", nickname);
+				leaveFlag = 1;
+			}else{
+				if(insertUserOnDataBase(nickname,password) == 0){
+					printf("we insert the user : %s \n", nickname);
+				}
+				strncpy(np->password, password,1024);
+				strncpy(np->name, nickname, 1024);
+				printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
+				sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
+				sendMsgToAllClients(np,sendBuffer);
+			}
+		}
 	}
 
 
 	// start of a conversation
 
 	while(1){
-		if(leaveFlag){
+		if(leaveFlag == 1){
 			break;
 		}
 		int receive = recv(np->data, recvBuffer, 1024, 0);
@@ -108,6 +215,7 @@ void clientHandler(void *p_client){
 
 int main(int argc, char* argv[])
 {
+	signal(SIGINT, catchCtrlCAndExit);
 	server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(server_sockfd == -1)
 	{

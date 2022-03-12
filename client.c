@@ -12,6 +12,13 @@ int sockfd = 0;
 char *username;
 char *password;
 
+int leaving = 0;
+
+void catchCtrlCAndExit(int n){
+	printf("** leaving the chatroom **\n");
+	leaving = 1;
+}
+
 void strTrimLf(char *arr, int length){
 	int i;
 	for(i = 0; i<length; i++){
@@ -65,6 +72,7 @@ void sendMsgHandler(){
 
 int main(int argc, char* argv[])
 {	
+	signal(SIGINT, catchCtrlCAndExit);
 
 	username = malloc(1024 * sizeof(char *));
 	password = malloc(1024 * sizeof(char *));
@@ -130,7 +138,9 @@ int main(int argc, char* argv[])
 	}
 
 	while(1){
-
+		if(leaving == 1){
+			break;
+		}
 	}
 
 	close(sockfd);
