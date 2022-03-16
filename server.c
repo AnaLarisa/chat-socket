@@ -9,12 +9,14 @@
 #include <pthread.h>
 #include "server.h"
 
+#define bufferLenght 1024
+
 int server_sockfd = 0, client_sockfd = 0;
 ClientList *root, *now;
 
-char sendBuffer[1024] = {};
+char sendBuffer[bufferLenght] = {};
 
-volatile sig_atomic_t counterUserOnline = 1;
+// here we sent message to all clients
 
 void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
 {
@@ -24,11 +26,13 @@ void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
 	{
 		if(np->data != tmp->data){
 			printf("Send to sockfd %d: \"%s\" \n ",tmp->data, tmp_buffer);
-			send(tmp->data,tmp_buffer,1024,0);
+			send(tmp->data,tmp_buffer,bufferLenght,0);
 		}
 		tmp = tmp->link;
 	}
 }
+
+// ctrl+c catch for the server
 
 void catchCtrlCAndExit(int sig)
 {
@@ -46,7 +50,9 @@ void catchCtrlCAndExit(int sig)
 	exit(EXIT_SUCCESS);
 }
 
-int checkIfUserAlreadyExistInFile(char *username)
+// checking if a user is already on our database
+
+int verifiyExistenceOfUser(char *username)
 {
 	FILE *fin = fopen("BazeDateUser.txt","r");
 	if(fin == NULL)
@@ -55,81 +61,41 @@ int checkIfUserAlreadyExistInFile(char *username)
 		exit(EXIT_FAILURE);
 	}
 
-	char *buffer = malloc(1024*sizeof(char *));
+	char *buffer = malloc(bufferLenght*sizeof(char *));
 	if(buffer == NULL)
 	{
 		perror("malloc");
 		exit(EXIT_FAILURE);
 	}
 
-	int result = 0;
+	int resultUsername = 0;
 
-	while(fgets(buffer,1024,fin) != NULL){
-		buffer[strlen(buffer) - 1] = '\0';
-		if(strcmp(buffer,username) == 0){
-			result = 1;
-		}
-		fgets(buffer,1024,fin);
-		buffer[strlen(buffer) - 1] = '\0';
-		if(result!=0){
-			break;
-		}
-	}
-
-	fclose(fin);
-	free(buffer);
-
-	return result;
-
-}
-
-int verifiyExistenceOfUser(char *username, char *password)
-{
-	FILE *fin = fopen("BazeDateUser.txt","r");
-	if(fin == NULL)
-	{
-		perror("fopen");
-		exit(EXIT_FAILURE);
-	}
-
-	char *buffer = malloc(1024*sizeof(char *));
-	if(buffer == NULL)
-	{
-		perror("malloc");
-		exit(EXIT_FAILURE);
-	}
-
-	int resultUsername = 0, resultPassword = 0;
-
-	while(fgets(buffer,1024,fin) != NULL){
+	while(fgets(buffer,bufferLenght,fin) != NULL){
 		buffer[strlen(buffer) - 1] = '\0';
 		//printf("%s \n",buffer);
 		if(strcmp(buffer,username) == 0){
 			resultUsername = 1;
 		}
-		fgets(buffer,1024,fin);
-		buffer[strlen(buffer) - 1] = '\0';
-		//printf("%s \n",buffer);
-		if(strcmp(buffer,password) ==0){
-			resultPassword = 1;
-		}
-		if(resultPassword != 0 && resultUsername !=0){
-			break;
+		
+		if(resultUsername !=0){
+			break; // s-a gasit userul
 		}
 	}
 
 	fclose(fin);
 	free(buffer);
-	if(resultUsername == 1 && resultPassword == 1){
+	if(resultUsername == 1){
 		return 1;
 	}
 	return -1;
 }
 
-int insertUserOnDataBase(char *username, char *password)
+// adding a new user on the database
+
+int insertUserOnDataBase(char *username)
 {
-	char buffer[1024];
-	sprintf(buffer, "%s\n%s\n", username, password);
+	char buffer[bufferLenght];
+	sprintf(buffer, "%s\n", username);
 
 	FILE *fin = fopen("BazeDateUser.txt","a");
 	if(fin == NULL)
@@ -144,7 +110,7 @@ int insertUserOnDataBase(char *username, char *password)
 	return 0;
 }
 
-
+// adding message to the message file
 
 void insertMsgToFile(char *message)
 {
@@ -155,7 +121,7 @@ void insertMsgToFile(char *message)
 		exit(EXIT_FAILURE);
 	}
 
-	char buffer[1024];
+	char buffer[bufferLenght];
 
 	sprintf(buffer,"%s\n",message);
 
@@ -164,50 +130,37 @@ void insertMsgToFile(char *message)
 	fclose(fin);
 }
 
+// here we are handling the client
+
 void clientHandler(void *p_client){
 	int leaveFlag = 0;
-	char nickname[1024] = {};
-	char password[1024] = {};
-	char recvBuffer[1024] = {};
+	char nickname[bufferLenght] = {};
+	char recvBuffer[bufferLenght] = {};
 
 
 	ClientList *np = (ClientList*) p_client;
 
-	if(recv(np->data, nickname,1024, 0) <= 0 || strlen(nickname) < 2 || strlen(nickname) >= 1024 - 1){
+	if(recv(np->data, nickname,bufferLenght, 0) <= 0 || strlen(nickname) < 2 || strlen(nickname) >= bufferLenght - 1){
 		printf("%s didn't input name. \n", np->ip);
-		leaveFlag = 1;
-	}
-	if(recv(np->data, password,1024, 0) <= 0 || strlen(password) < 2 || strlen(password) >= 1024 - 1){
-		printf("%s didn't input password. \n", np->ip);
 		leaveFlag = 1;
 	}else{
 		// verifiy file 
-		if(verifiyExistenceOfUser(nickname,password) > 0)
+		if(verifiyExistenceOfUser(nickname) > 0)
 		{
 			printf("The user %s that is trying to join is existing on our database!",nickname);
-			strncpy(np->password, password,1024);
-			strncpy(np->name, nickname, 1024);
-			printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
+			strncpy(np->name, nickname, bufferLenght);
+			printf("%s (%s)(%d) join the chatroom.\n", np->name, np->ip, np->data);
 			sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
 			sendMsgToAllClients(np,sendBuffer);
 		}else{
-			if(checkIfUserAlreadyExistInFile(nickname) == 1){
-				printf("username %s already exists... not entering the chat.. \n", nickname);
-				sprintf(sendBuffer, "you cannot enter the chat because the username %s already exists ", nickname);
-				send(np->data,sendBuffer,1024,0);
-				leaveFlag = 1;
-			}else{
-				if(insertUserOnDataBase(nickname,password) == 0){
-					printf("we insert the user : %s \n", nickname);
-				}
-				strncpy(np->password, password,1024);
-				strncpy(np->name, nickname, 1024);
-				printf("%s %s (%s)(%d) join the chatroom.\n", np->name,np->password, np->ip, np->data);
-				sprintf(sendBuffer, "%s(%s) join the chatroom.\n", np->name, np->ip);
-				sendMsgToAllClients(np,sendBuffer);
+			if(insertUserOnDataBase(nickname) == 0){
+				printf("we are inserting the user : %s \n", nickname);
 			}
+			strncpy(np->name, nickname, bufferLenght);
+			printf("%s (%s)(%d) join the chatroom.\n", np->name, np->ip, np->data);
+			sprintf(sendBuffer, "%s(%s) join the chatroom.\n", np->name, np->ip);
+			sendMsgToAllClients(np,sendBuffer);
 		}
-		counterUserOnline++;
 	}
 
 	send(np->data,"message.txt",12,0);
@@ -218,7 +171,7 @@ void clientHandler(void *p_client){
 		if(leaveFlag == 1){
 			break;
 		}
-		int receive = recv(np->data, recvBuffer, 1024, 0);
+		int receive = recv(np->data, recvBuffer, bufferLenght, 0);
 		if(receive > 0){
 			if(strlen(recvBuffer) == 0){
 				continue;
@@ -226,7 +179,6 @@ void clientHandler(void *p_client){
 			sprintf(sendBuffer, "%s: %s ", np->name, recvBuffer);
 			insertMsgToFile(sendBuffer);
 		}else if(receive == 0 || strcmp(recvBuffer, "exit") == 0){
-			counterUserOnline--;
 			printf("%s(%s)(%d) leave the chatroom", np->name, np->ip, np->data);
 			sprintf(sendBuffer, "%s(%s) leave the chatroom.\n", np->name, np->ip);
 			leaveFlag = 1;
@@ -263,7 +215,7 @@ int main(int argc, char* argv[])
 	memset(&client_info, 0, client_addrlen);
 
 	server_info.sin_family = PF_INET;
-	server_info.sin_addr.s_addr = INADDR_ANY;
+	server_info.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server_info.sin_port = htons(8001);
 
 
@@ -280,9 +232,13 @@ int main(int argc, char* argv[])
 	while(1)
 	{
 		printf("***SERVER ON***\n");
-		printf("***** USERS ONLINE : %d *****\n", counterUserOnline);
 
 		client_sockfd = accept(server_sockfd, (struct sockaddr*)&client_info, (socklen_t*)&client_addrlen);
+
+		if(client_sockfd == -1){
+			perror("could not accept a client");
+			exit(EXIT_FAILURE);
+		}
 
 		getpeername(client_sockfd, (struct sockaddr*)&client_info, (socklen_t*) &client_addrlen);
 

@@ -7,7 +7,6 @@ typedef struct ClientNode{
 	struct ClientNode* link;
 	char ip[16];
 	char name[1024];
-	char password[1024];
 }ClientList;
 
 ClientList *newNode(int sockfd, char *ip)

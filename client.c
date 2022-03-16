@@ -8,11 +8,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
+#define bufferLenght 1024
+
 int sockfd = 0;
 char *username;
-char *password;
 
 int leaving = 0;
+
+// exception of ctrl+c
 
 void catchCtrlCAndExit(int n){
 	printf("** leaving the chatroom **\n");
@@ -29,16 +32,20 @@ void strTrimLf(char *arr, int length){
 	}
 }
 
+// add > before all conv
+
 void strOverWriteStdout(){
 	printf("\r%s", ">");
 	fflush(stdout);
 }
 
+// receive message from server to client
+
 void recvMsgHandler()
 {
-	char receiveMessage[1024] = {};
+	char receiveMessage[bufferLenght] = {};
 	while(1){
-		int receive = recv(sockfd, receiveMessage, 1024, 0);
+		int receive = recv(sockfd, receiveMessage, bufferLenght, 0);
 		if(receive > 0 && strcmp(receiveMessage,"message.txt") !=0){
 			printf("\r%s\n", receiveMessage);
 			strOverWriteStdout();
@@ -70,19 +77,21 @@ void recvMsgHandler()
 	}
 }
 
+// send message from client to server
+
 void sendMsgHandler(){
-	char message[1024] = {};
+	char message[bufferLenght] = {};
 	while(1){
 		strOverWriteStdout();
-		while(fgets(message,1024, stdin) != NULL){
-			strTrimLf(message,1024);
+		while(fgets(message,bufferLenght, stdin) != NULL){
+			strTrimLf(message,bufferLenght);
 			if(strlen(message) == 0){
 				strOverWriteStdout();
 			}else{
 				break;
 			}
 		}
-		send(sockfd,message,1024,0);
+		send(sockfd,message,bufferLenght,0);
 		if(strcmp(message, "exit") == 0){
 			break;
 		}
@@ -94,20 +103,13 @@ int main(int argc, char* argv[])
 {	
 	signal(SIGINT, catchCtrlCAndExit);
 
-	username = malloc(1024 * sizeof(char *));
-	password = malloc(1024 * sizeof(char *));
+	username = malloc(bufferLenght * sizeof(char *));
 
 
 	printf("enter you're username : ");
 
-	if(fgets(username,1024,stdin) != NULL){
-		strTrimLf(username,1024);
-	}
-
-	printf("enter you're password : ");
-
-	if(fgets(password,1024,stdin) != NULL){
-		strTrimLf(password,1024);
+	if(fgets(username,bufferLenght,stdin) != NULL){
+		strTrimLf(username,bufferLenght);
 	}
 
 	pid_t process = fork();
@@ -160,8 +162,7 @@ int main(int argc, char* argv[])
 	printf("connect to server: %s:%d \n", inet_ntoa(server_info.sin_addr), ntohs(server_info.sin_port));
 	printf("you are: %s:%d\n",inet_ntoa(client_info.sin_addr), ntohs(client_info.sin_port));
 
-	send(sockfd,username,1024,0);
-	send(sockfd,password,1024,0);
+	send(sockfd,username,bufferLenght,0);
 
 	pthread_t sendMsgThread;
 

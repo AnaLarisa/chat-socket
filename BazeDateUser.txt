@@ -6,3 +6,10 @@ paul
 test
 marco
 test
+test
+test
+ana
+test
+bog
+clear
+lazar
