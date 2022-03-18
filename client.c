@@ -77,7 +77,13 @@ void recvMsgHandler()
 // send message from client to server
 
 void sendMsgHandler(){
-	char message[bufferLength] = {};
+	char *message;
+	message = malloc(bufferLength*sizeof(char*));
+	if(message == NULL)
+	{
+		perror("malloc");
+		exit(1);
+	}
 	while(1){
 		strOverWriteStdout();
 		while(fgets(message,bufferLength, stdin) != NULL){
@@ -93,6 +99,8 @@ void sendMsgHandler(){
 			break;
 		}
 	}
+
+	free(message);
 }
 
 
@@ -151,7 +159,7 @@ int main(int argc, char* argv[])
 		perror("connection error on server");
 		exit(EXIT_FAILURE);
 	}
-
+	printf("\n!!! WARNING, YOU CAN WRITE ONLY 1027 characters !!! \n");
 
 	getsockname(sockfd, (struct sockaddr*)&client_info, (socklen_t *)&client_addrlen);
 	getsockname(sockfd, (struct sockaddr*)&server_info, (socklen_t *)&server_addrlen);

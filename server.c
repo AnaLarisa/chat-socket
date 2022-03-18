@@ -122,9 +122,7 @@ void insertMsgToFile(char *message)
 	}
 
 	char buffer[bufferLength];
-	printf("s a ajuns aici");
 	sprintf(buffer,"%s\n",message);
-	printf("dar a picat aici");
 	fputs(buffer,fin);
 
 	fclose(fin);
@@ -163,7 +161,6 @@ void clientHandler(void *p_client){
 		}
 	}
 
-
 	send(np->data,"message.txt",12,0);
 
 	// start of a conversation
@@ -173,7 +170,7 @@ void clientHandler(void *p_client){
 			break;
 		}
 		int receive = recv(np->data, recvBuffer, bufferLength, 0);
-		printf("size : %lu", strlen(recvBuffer));
+		// printf("size : %lu", strlen(recvBuffer));
 		if(receive > 0){
 			if(strlen(recvBuffer) == 0){
 				continue;
@@ -205,7 +202,7 @@ int main(int argc, char* argv[])
 	sendBuffer = malloc(bufferLength * sizeof(char *));
 	if(sendBuffer == NULL)
 	{
-		
+		perror("malloc");
 		exit(1);
 	}
 
