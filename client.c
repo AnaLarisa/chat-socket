@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define bufferLenght 1024
+#define bufferLength 1028
 
 int sockfd = 0;
 char *username;
@@ -43,9 +43,9 @@ void strOverWriteStdout(){
 
 void recvMsgHandler()
 {
-	char receiveMessage[bufferLenght] = {};
+	char receiveMessage[bufferLength] = {};
 	while(1){
-		int receive = recv(sockfd, receiveMessage, bufferLenght, 0);
+		int receive = recv(sockfd, receiveMessage, bufferLength, 0);
 		if(receive > 0 && strcmp(receiveMessage,"message.txt") !=0){
 			printf("\r%s\n", receiveMessage);
 			strOverWriteStdout();
@@ -68,9 +68,6 @@ void recvMsgHandler()
 			int status;
 			waitpid(process,&status,0);
 			strOverWriteStdout();
-		}else if(receive > 0 && strcmp(receiveMessage,"EXIT") == 0){
-			printf("\nserver disconnect\n");
-			leaving = 1;
 		}else{
 
 		}
@@ -80,18 +77,18 @@ void recvMsgHandler()
 // send message from client to server
 
 void sendMsgHandler(){
-	char message[bufferLenght] = {};
+	char message[bufferLength] = {};
 	while(1){
 		strOverWriteStdout();
-		while(fgets(message,bufferLenght, stdin) != NULL){
-			strTrimLf(message,bufferLenght);
+		while(fgets(message,bufferLength, stdin) != NULL){
+			strTrimLf(message,bufferLength);
 			if(strlen(message) == 0){
 				strOverWriteStdout();
 			}else{
 				break;
 			}
 		}
-		send(sockfd,message,bufferLenght,0);
+		send(sockfd,message,bufferLength,0);
 		if(strcmp(message, "exit") == 0){
 			break;
 		}
@@ -103,13 +100,13 @@ int main(int argc, char* argv[])
 {	
 	signal(SIGINT, catchCtrlCAndExit);
 
-	username = malloc(bufferLenght * sizeof(char *));
+	username = malloc(bufferLength * sizeof(char *));
 
 
-	printf("enter you're username : ");
+	printf("enter your username : ");
 
-	if(fgets(username,bufferLenght,stdin) != NULL){
-		strTrimLf(username,bufferLenght);
+	if(fgets(username,bufferLength,stdin) != NULL){
+		strTrimLf(username,bufferLength);
 	}
 
 	pid_t process = fork();
@@ -145,7 +142,7 @@ int main(int argc, char* argv[])
 	memset(&client_info,0,client_addrlen);
 	server_info.sin_family = PF_INET;
 	server_info.sin_addr.s_addr = inet_addr("127.0.0.1");
-	server_info.sin_port = htons(8001);
+	server_info.sin_port = htons(8000);
 
 	int connectionError = connect(sockfd, (struct sockaddr*)& server_info, server_addrlen);
 
@@ -162,7 +159,7 @@ int main(int argc, char* argv[])
 	printf("connect to server: %s:%d \n", inet_ntoa(server_info.sin_addr), ntohs(server_info.sin_port));
 	printf("you are: %s:%d\n",inet_ntoa(client_info.sin_addr), ntohs(client_info.sin_port));
 
-	send(sockfd,username,bufferLenght,0);
+	send(sockfd,username,bufferLength,0);
 
 	pthread_t sendMsgThread;
 
@@ -182,7 +179,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 	}
-
+	free(username);
 	close(sockfd);
 	return 0;
 }

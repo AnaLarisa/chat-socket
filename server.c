@@ -9,16 +9,16 @@
 #include <pthread.h>
 #include "server.h"
 
-#define bufferLenght 1024
+#define bufferLength 1400
 
 int server_sockfd = 0, client_sockfd = 0;
 ClientList *root, *now;
 
-char sendBuffer[bufferLenght] = {};
+char *sendBuffer;
 
 // here we sent message to all clients
 
-void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
+void sendMsgToAllClients(ClientList *np, char *tmp_buffer)
 {
 	ClientList *tmp = root->link;
 
@@ -26,7 +26,7 @@ void sendMsgToAllClients(ClientList *np, char tmp_buffer[])
 	{
 		if(np->data != tmp->data){
 			printf("Send to sockfd %d: \"%s\" \n ",tmp->data, tmp_buffer);
-			send(tmp->data,tmp_buffer,bufferLenght,0);
+			send(tmp->data,tmp_buffer,bufferLength,0);
 		}
 		tmp = tmp->link;
 	}
@@ -61,7 +61,7 @@ int verifiyExistenceOfUser(char *username)
 		exit(EXIT_FAILURE);
 	}
 
-	char *buffer = malloc(bufferLenght*sizeof(char *));
+	char *buffer = malloc(bufferLength*sizeof(char *));
 	if(buffer == NULL)
 	{
 		perror("malloc");
@@ -70,7 +70,7 @@ int verifiyExistenceOfUser(char *username)
 
 	int resultUsername = 0;
 
-	while(fgets(buffer,bufferLenght,fin) != NULL){
+	while(fgets(buffer,bufferLength,fin) != NULL){
 		buffer[strlen(buffer) - 1] = '\0';
 		//printf("%s \n",buffer);
 		if(strcmp(buffer,username) == 0){
@@ -78,7 +78,7 @@ int verifiyExistenceOfUser(char *username)
 		}
 		
 		if(resultUsername !=0){
-			break; // s-a gasit userul
+			break;
 		}
 	}
 
@@ -94,7 +94,7 @@ int verifiyExistenceOfUser(char *username)
 
 int insertUserOnDataBase(char *username)
 {
-	char buffer[bufferLenght];
+	char buffer[bufferLength];
 	sprintf(buffer, "%s\n", username);
 
 	FILE *fin = fopen("BazeDateUser.txt","a");
@@ -121,10 +121,10 @@ void insertMsgToFile(char *message)
 		exit(EXIT_FAILURE);
 	}
 
-	char buffer[bufferLenght];
-
+	char buffer[bufferLength];
+	printf("s a ajuns aici");
 	sprintf(buffer,"%s\n",message);
-
+	printf("dar a picat aici");
 	fputs(buffer,fin);
 
 	fclose(fin);
@@ -134,13 +134,13 @@ void insertMsgToFile(char *message)
 
 void clientHandler(void *p_client){
 	int leaveFlag = 0;
-	char nickname[bufferLenght] = {};
-	char recvBuffer[bufferLenght] = {};
+	char nickname[bufferLength] = {};
+	char recvBuffer[bufferLength] = {};
 
 
 	ClientList *np = (ClientList*) p_client;
 
-	if(recv(np->data, nickname,bufferLenght, 0) <= 0 || strlen(nickname) < 2 || strlen(nickname) >= bufferLenght - 1){
+	if(recv(np->data, nickname,bufferLength, 0) <= 0 || strlen(nickname) < 2 || strlen(nickname) >= bufferLength - 1){
 		printf("%s didn't input name. \n", np->ip);
 		leaveFlag = 1;
 	}else{
@@ -148,7 +148,7 @@ void clientHandler(void *p_client){
 		if(verifiyExistenceOfUser(nickname) > 0)
 		{
 			printf("The user %s that is trying to join is existing on our database!",nickname);
-			strncpy(np->name, nickname, bufferLenght);
+			strncpy(np->name, nickname, bufferLength);
 			printf("%s (%s)(%d) join the chatroom.\n", np->name, np->ip, np->data);
 			sprintf(sendBuffer, "%s(%s) join the chatroom.", np->name, np->ip);
 			sendMsgToAllClients(np,sendBuffer);
@@ -156,12 +156,13 @@ void clientHandler(void *p_client){
 			if(insertUserOnDataBase(nickname) == 0){
 				printf("we are inserting the user : %s \n", nickname);
 			}
-			strncpy(np->name, nickname, bufferLenght);
+			strncpy(np->name, nickname, bufferLength);
 			printf("%s (%s)(%d) join the chatroom.\n", np->name, np->ip, np->data);
 			sprintf(sendBuffer, "%s(%s) join the chatroom.\n", np->name, np->ip);
 			sendMsgToAllClients(np,sendBuffer);
 		}
 	}
+
 
 	send(np->data,"message.txt",12,0);
 
@@ -171,7 +172,8 @@ void clientHandler(void *p_client){
 		if(leaveFlag == 1){
 			break;
 		}
-		int receive = recv(np->data, recvBuffer, bufferLenght, 0);
+		int receive = recv(np->data, recvBuffer, bufferLength, 0);
+		printf("size : %lu", strlen(recvBuffer));
 		if(receive > 0){
 			if(strlen(recvBuffer) == 0){
 				continue;
@@ -187,6 +189,7 @@ void clientHandler(void *p_client){
 		
 	}
 
+
 	close(np->data);
 	if(np == now){
 		now = np->prev;
@@ -199,6 +202,13 @@ void clientHandler(void *p_client){
 
 int main(int argc, char* argv[])
 {
+	sendBuffer = malloc(bufferLength * sizeof(char *));
+	if(sendBuffer == NULL)
+	{
+		
+		exit(1);
+	}
+
 	//signal(SIGINT, catchCtrlCAndExit);
 	server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(server_sockfd == -1)
@@ -216,8 +226,7 @@ int main(int argc, char* argv[])
 
 	server_info.sin_family = PF_INET;
 	server_info.sin_addr.s_addr = inet_addr("127.0.0.1");
-	server_info.sin_port = htons(8001);
-
+	server_info.sin_port = htons(8000);
 
 	bind(server_sockfd, (struct sockaddr *)&server_info, server_addrlen);
 	listen(server_sockfd, 5);
@@ -255,9 +264,7 @@ int main(int argc, char* argv[])
 			perror("thread creeation error");
 			exit(EXIT_FAILURE);
 		}
-
 	}
-
 
 	return 0;
 }

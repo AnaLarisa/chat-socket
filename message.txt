@@ -1,6 +1,1 @@
-bogdan: cia amolia 
-amalia: salut bogdan 
-amalia: cf 
-bogdan: bn  
-bogdan: tu 
-amalia: bn si eu 
+dasdasdasda: TEST DACA SE TRIMITE CA TREBUIE  
